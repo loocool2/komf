@@ -1,5 +1,5 @@
 # Komga and Kavita Metadata Fetcher
-Download latest version from https://github.com/Snd-R/komf/releases
+Download latest version from not here
 
 ## Overview
 Komga and Kavita Metadata Fetcher is a tool that fetches metadata and thumbnails for your digital comic book library.\
