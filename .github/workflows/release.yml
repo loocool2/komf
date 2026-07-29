@@ -49,8 +49,8 @@ jobs:
           name: ${{ steps.ver.outputs.version }}
           # Snd-R writes release notes by hand — publish from the Releases tab
           # once you've edited them. Set to false to publish immediately.
-          draft: true
-          generate_release_notes: true
+          #draft: true
+          #generate_release_notes: true
           files: komf-app/build/libs/komf-${{ steps.ver.outputs.version }}.jar
 
       # ---- Docker image: ghcr.io/loocool2/komf ----
@@ -71,8 +71,6 @@ jobs:
         with:
           context: .
           push: true
-          # add linux/arm/v7 if you need 32-bit ARM — the Dockerfile has a base
-          # for it, but emulated builds are slow
           platforms: linux/amd64,linux/arm64
           build-args: |
             KOMF_VERSION=${{ steps.ver.outputs.version }}
