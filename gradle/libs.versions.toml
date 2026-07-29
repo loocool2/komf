@@ -29,6 +29,7 @@ tika = "3.2.3"
 twelveMonkeys = "3.12.0"
 velocity = "2.4.1"
 xmlutil = "0.91.2"
+zstd-jni = "1.5.7-6"
 
 [libraries]
 cache4k = { module = "io.github.reactivecircus.cache4k:cache4k", version.ref = "cache4k" }
@@ -77,6 +78,10 @@ twelvemonkeys-imageio-webp = { module = "com.twelvemonkeys.imageio:imageio-webp"
 velocity-core = { module = "org.apache.velocity:velocity-engine-core", version.ref = "velocity" }
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
 xmlutil-serialization = { module = "io.github.pdvrieze.xmlutil:serialization", version.ref = "xmlutil" }
+# Native zstd bindings. commons-compress exposes ZstdCompressorInputStream but
+# delegates the actual codec to this library, which is an optional dependency
+# there and so has to be declared explicitly.
+zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstd-jni" }
 
 [plugins]
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
