@@ -20,6 +20,10 @@ data class BookWalkerBook(
     val authors: Collection<String>,
     val publisher: String,
     val genres: Collection<String>,
+    /** Descriptive tags (`tags.namespace` 2). Not obtainable from the old scraper. */
+    val tags: Collection<String>,
+    /** ISBN-13 from `product_external_ids`; absent for some digital-only titles. */
+    val isbn: String?,
     val availableSince: LocalDate?,
 
     val synopsis: String?,

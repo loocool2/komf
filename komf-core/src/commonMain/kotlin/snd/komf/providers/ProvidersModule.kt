@@ -27,9 +27,10 @@ import snd.komf.providers.anilist.AniListMetadataProvider
 import snd.komf.providers.bangumi.BangumiClient
 import snd.komf.providers.bangumi.BangumiMetadataMapper
 import snd.komf.providers.bangumi.BangumiMetadataProvider
-import snd.komf.providers.bookwalker.BookWalkerClient
 import snd.komf.providers.bookwalker.BookWalkerMapper
 import snd.komf.providers.bookwalker.BookWalkerMetadataProvider
+import snd.komf.providers.bookwalker.db.BookWalkerDatabase
+import snd.komf.providers.bookwalker.db.BookWalkerDbDataSource
 import snd.komf.providers.comicvine.ComicVineClient
 import snd.komf.providers.comicvine.ComicVineMetadataMapper
 import snd.komf.providers.comicvine.ComicVineMetadataProvider
@@ -79,8 +80,9 @@ private val logger = KotlinLogging.logger { }
 
 class ProvidersModule(
     private val config: MetadataProvidersConfig,
-    baseHttpClient: HttpClient,
+    private val baseHttpClient: HttpClient,
     mangaBakaDatabase: Database?,
+    bookWalkerDatabase: BookWalkerDatabase,
 ) {
 
     private val json = Json {
@@ -221,19 +223,10 @@ class ProvidersModule(
             }
         }
     )
-    private val bookWalkerClient = BookWalkerClient(
-        ktor = baseHttpClient.config {
-            install(HttpRequestRateLimiter) {
-                interval = 10.seconds
-                eventsPerInterval = 10
-                allowBurst = true
-            }
-            install(HttpRequestRetry) {
-                defaultRetry()
-            }
-        },
-        json = json
-    )
+    // BookWalker reads from a locally downloaded catalog export, so there is no
+    // HTTP client to rate limit here. The only outbound requests it makes are
+    // cover fetches, which use the plain client below.
+    private val bookWalkerDataSource = BookWalkerDbDataSource(bookWalkerDatabase)
     private val mangaDexClient = MangaDexClient(
         baseHttpClientJson.config {
             install(HttpRequestRateLimiter) {
@@ -379,7 +372,7 @@ class ProvidersModule(
             vizPriority = config.viz.priority,
             bookwalker = createBookWalkerMetadataProvider(
                 config.bookWalker,
-                bookWalkerClient,
+                bookWalkerDataSource,
                 defaultNameMatcher
             ),
             bookwalkerPriority = config.bookWalker.priority,
@@ -612,7 +605,7 @@ class ProvidersModule(
 
     private fun createBookWalkerMetadataProvider(
         config: ProviderConfig,
-        client: BookWalkerClient,
+        dataSource: BookWalkerDbDataSource,
         defaultNameMatcher: NameSimilarityMatcher,
     ): BookWalkerMetadataProvider? {
         if (config.enabled.not()) return null
@@ -627,9 +620,10 @@ class ProvidersModule(
             ?.let { nameSimilarityMatcher(it) } ?: defaultNameMatcher
 
         return BookWalkerMetadataProvider(
-            client,
+            dataSource,
             bookWalkerMapper,
             similarityMatcher,
+            baseHttpClient,
             config.seriesMetadata.thumbnail,
             config.bookMetadata.thumbnail,
             config.mediaType

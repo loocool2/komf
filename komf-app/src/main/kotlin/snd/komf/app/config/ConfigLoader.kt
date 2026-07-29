@@ -47,6 +47,8 @@ class ConfigLoader(private val yaml: Yaml) {
         val templatesDirectory = configDirectory ?: notificationConfig.templatesDirectory
         val mangaBakaDirectory = configDirectory?.let { "$it/mangabaka" }
             ?: config.metadataProviders.mangabakaDatabaseDir
+        val bookWalkerDirectory = configDirectory?.let { "$it/bookwalker" }
+            ?: config.metadataProviders.bookwalkerDatabaseDir
 
         val appriseUrls = System.getenv("KOMF_APPRISE_URLS")?.ifBlank { null }
             ?.split(",")?.toList()
@@ -96,7 +98,8 @@ class ConfigLoader(private val yaml: Yaml) {
                 malClientId = malClientId,
                 comicVineApiKey = comicVineApiKey,
                 bangumiToken = bangumiToken,
-                mangabakaDatabaseDir = mangaBakaDirectory
+                mangabakaDatabaseDir = mangaBakaDirectory,
+                bookwalkerDatabaseDir = bookWalkerDirectory
             ),
             notifications = config.notifications.copy(
                 templatesDirectory = templatesDirectory,

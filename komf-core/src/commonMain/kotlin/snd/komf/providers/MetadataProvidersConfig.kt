@@ -25,6 +25,12 @@ data class MetadataProvidersConfig(
     val defaultProviders: ProvidersConfig = ProvidersConfig(),
     val libraryProviders: Map<String, ProvidersConfig> = emptyMap(),
     val mangabakaDatabaseDir: String = "./mangabaka",
+    /**
+     * Where the BookWalker catalog export is downloaded to. Needs roughly 250 MB
+     * free — the export is ~52 MB compressed and ~233 MB extracted, plus a small
+     * search index.
+     */
+    val bookwalkerDatabaseDir: String = "./bookwalker",
 )
 
 @Serializable
