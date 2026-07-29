@@ -32,9 +32,6 @@ kotlin {
     }
 
     sourceSets {
-        all {
-            languageSettings.optIn("kotlin.time.ExperimentalTime")
-        }
         commonMain.dependencies {
             api(project(":komf-api-models"))
             implementation(libs.kotlin.logging)

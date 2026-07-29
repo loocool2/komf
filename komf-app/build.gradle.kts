@@ -7,13 +7,12 @@ plugins {
 }
 
 group = "io.github.snd-r"
-version = "1.0.0-SNAPSHOT"
+version = (findProperty("komfVersion") as String?) ?: libs.versions.app.version.get()
 
 kotlin {
     jvmToolchain(17)
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
-        optIn.add("kotlin.time.ExperimentalTime")
     }
 }
 java {
@@ -58,6 +57,8 @@ dependencies {
 
 tasks {
     shadowJar {
+        archiveBaseName = "komf"
+        archiveClassifier = ""
         manifest {
             attributes(Pair("Main-Class", "snd.komf.app.ApplicationKt"))
         }

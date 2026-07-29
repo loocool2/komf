@@ -49,6 +49,12 @@ database.sqlite
 ### kotlin ###
 kls_database.db
 kls-classpath*
+# Kotlin 2.x project-level build cache (transformed metadata klibs, session files)
+.kotlin/
+
+### gradle ###
+# Machine-specific paths (sdk.dir and friends) — never shared
+local.properties
 
 ### neovim ###
 .nvim.lua
