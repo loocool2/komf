@@ -1,3 +1,5 @@
+This is all slopcode
+
 # Komga and Kavita Metadata Fetcher
 Download latest version from https://github.com/Snd-R/komf/releases
 
