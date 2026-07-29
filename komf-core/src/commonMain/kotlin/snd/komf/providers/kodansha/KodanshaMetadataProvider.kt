@@ -1,6 +1,5 @@
 package snd.komf.providers.kodansha
 
-import io.ktor.http.*
 import snd.komf.model.Image
 import snd.komf.model.MatchQuery
 import snd.komf.model.ProviderBookId
@@ -27,56 +26,46 @@ class KodanshaMetadataProvider(
     }
 
     override suspend fun getSeriesMetadata(seriesId: ProviderSeriesId): ProviderSeriesMetadata {
-        val series = client.getSeries(KodanshaSeriesId(seriesId.value.toInt())).response
-        val thumbnail = if (fetchSeriesCovers) getThumbnail(series.thumbnails?.firstOrNull()?.url) else null
-        val bookList = client.getAllSeriesBooks(KodanshaSeriesId(series.id))
-        return metadataMapper.toSeriesMetadata(series, bookList, thumbnail)
+        val series = client.getSeries(KodanshaSeriesId(seriesId.value))
+        val thumbnail = if (fetchSeriesCovers) getThumbnail(series.coverUrl) else null
+        return metadataMapper.toSeriesMetadata(series, thumbnail)
     }
 
     override suspend fun getSeriesCover(seriesId: ProviderSeriesId): Image? {
-        val series = client.getSeries(KodanshaSeriesId(seriesId.value.toInt())).response
-        return getThumbnail(series.thumbnails?.firstOrNull()?.url)
+        val series = client.getSeries(KodanshaSeriesId(seriesId.value))
+        return getThumbnail(series.coverUrl)
     }
 
-    override suspend fun getBookMetadata(seriesId: ProviderSeriesId, bookId: ProviderBookId): ProviderBookMetadata {
-        val bookMetadata = client.getBook(KodanshaBookId(bookId.id.toInt())).response
-        val thumbnail = if (fetchBookCovers) getThumbnail(bookMetadata.thumbnails.firstOrNull()?.url) else null
-
-        return metadataMapper.toBookMetadata(bookMetadata, thumbnail)
+    override suspend fun getBookMetadata(
+        seriesId: ProviderSeriesId,
+        bookId: ProviderBookId,
+    ): ProviderBookMetadata {
+        val book = client.getBook(KodanshaSeriesId(seriesId.value), KodanshaBookId(bookId.id))
+        val thumbnail = if (fetchBookCovers) getThumbnail(book.coverUrl) else null
+        return metadataMapper.toBookMetadata(book, thumbnail)
     }
 
     override suspend fun searchSeries(seriesName: String, limit: Int): Collection<SeriesSearchResult> {
-        val searchResults = client.search(sanitizeSearchInput(seriesName)).response.take(limit)
-        return searchResults
-            .filter { it.type == "series" }
-            .map { metadataMapper.toSeriesSearchResult(it) }
+        val searchResults = client.search(sanitizeSearchInput(seriesName)).data.take(limit)
+        return searchResults.map { metadataMapper.toSeriesSearchResult(it) }
     }
 
     override suspend fun matchSeriesMetadata(matchQuery: MatchQuery): ProviderSeriesMetadata? {
         val seriesName = matchQuery.seriesName
-        val searchResults = client.search(sanitizeSearchInput(seriesName)).response
+        val searchResults = client.search(sanitizeSearchInput(seriesName)).data
 
         return searchResults
-            .filter { it.type == "series" }
-            .filter { it.content.readableUrl != null }
-            .firstOrNull { nameMatcher.matches(seriesName, it.content.title.removeSuffix(" (manga)")) }
-            ?.let {
-                val series = client.getSeries(KodanshaSeriesId(it.content.id)).response
-                val thumbnail = if (fetchSeriesCovers) getThumbnail(series.thumbnails?.firstOrNull()?.url) else null
-                val bookList = client.getAllSeriesBooks(KodanshaSeriesId(series.id))
-                metadataMapper.toSeriesMetadata(series, bookList, thumbnail)
+            .firstOrNull { nameMatcher.matches(seriesName, it.name.removeSuffix(" (manga)")) }
+            ?.let { hint ->
+                val series = client.getSeries(KodanshaSeriesId(hint.slug), hint)
+                val thumbnail = if (fetchSeriesCovers) getThumbnail(series.coverUrl) else null
+                metadataMapper.toSeriesMetadata(series, thumbnail)
             }
     }
 
     private suspend fun getThumbnail(url: String?): Image? {
         if (url == null || url.contains("kodansha_placeholder")) return null
-
-        return client.getThumbnail(
-            URLBuilder(url).apply {
-                parameters.append("w", "1000")
-                parameters.append("f", "webp")
-            }.buildString()
-        )
+        return client.getThumbnail(url)
     }
 
     private fun sanitizeSearchInput(input: String): String {

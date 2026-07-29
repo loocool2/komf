@@ -11,25 +11,46 @@ import snd.komf.providers.kodansha.model.KodanshaSearchResult
 import snd.komf.providers.kodansha.model.KodanshaSeries
 import snd.komf.providers.kodansha.model.KodanshaSeriesId
 
-class KodanshaClient(private val ktor: HttpClient) {
-    private val apiUrl = "https://api.kodansha.us"
+/**
+ * Client for the redesigned kodansha.us.
+ *
+ * There is no longer a single JSON detail API (the old api.kodansha.us is gone), so this
+ * mixes two sources:
+ *  - Search uses the site's WordPress REST endpoint (JSON).
+ *  - Series/volume detail is scraped from the server-rendered HTML pages via [KodanshaHtmlParser].
+ */
+class KodanshaClient(
+    private val ktor: HttpClient,
+    private val baseUrl: String = kodanshaBaseUrl,
+) {
+    private val searchUrl = "$baseUrl/wp-json/kodansha/v1/search-series"
 
-    suspend fun search(name: String): KodanshaResponse<List<KodanshaSearchResult>> {
-        return ktor.get("$apiUrl/search/V3") {
-            parameter("query", name)
+    /** Full-text search over series. The query parameter is `q`. */
+    suspend fun search(query: String): KodanshaResponse {
+        return ktor.get(searchUrl) {
+            parameter("q", query)
         }.body()
     }
 
-    suspend fun getSeries(seriesId: KodanshaSeriesId): KodanshaResponse<KodanshaSeries> {
-        return ktor.get("$apiUrl/series/V2/${seriesId.id}").body()
+    /**
+     * Fetches and parses a series detail page.
+     * @param hint optional search result to fill in fields the HTML omits (uuid, etc.).
+     */
+    suspend fun getSeries(
+        seriesId: KodanshaSeriesId,
+        hint: KodanshaSearchResult? = null,
+    ): KodanshaSeries {
+        val html: String = ktor.get("$baseUrl/series/${seriesId.id}/").body()
+        return KodanshaHtmlParser.parseSeries(seriesId.id, html, hint)
     }
 
-    suspend fun getAllSeriesBooks(seriesId: KodanshaSeriesId): List<KodanshaBook> {
-        return ktor.get("$apiUrl/product/forSeries/${seriesId.id}").body()
-    }
-
-    suspend fun getBook(bookId: KodanshaBookId): KodanshaResponse<KodanshaBook> {
-        return ktor.get("$apiUrl/product/${bookId.id}").body()
+    /** Fetches and parses a single volume page. */
+    suspend fun getBook(
+        seriesId: KodanshaSeriesId,
+        bookId: KodanshaBookId,
+    ): KodanshaBook {
+        val html: String = ktor.get("$baseUrl/series/${seriesId.id}/${bookId.id}/").body()
+        return KodanshaHtmlParser.parseBook(seriesId.id, bookId.id, html)
     }
 
     suspend fun getThumbnail(url: String): Image {
@@ -37,4 +58,3 @@ class KodanshaClient(private val ktor: HttpClient) {
         return Image(bytes)
     }
 }
-

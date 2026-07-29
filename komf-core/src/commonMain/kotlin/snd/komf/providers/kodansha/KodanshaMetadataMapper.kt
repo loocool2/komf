@@ -1,6 +1,5 @@
 package snd.komf.providers.kodansha
 
-import com.fleeksoft.ksoup.Ksoup
 import snd.komf.model.Author
 import snd.komf.model.AuthorRole
 import snd.komf.model.BookMetadata
@@ -24,6 +23,7 @@ import snd.komf.providers.CoreProviders
 import snd.komf.providers.MetadataConfigApplier
 import snd.komf.providers.SeriesMetadataConfig
 import snd.komf.providers.kodansha.model.KodanshaBook
+import snd.komf.providers.kodansha.model.KodanshaCreator
 import snd.komf.providers.kodansha.model.KodanshaSearchResult
 import snd.komf.providers.kodansha.model.KodanshaSeries
 
@@ -36,90 +36,76 @@ class KodanshaMetadataMapper(
 
     fun toSeriesMetadata(
         series: KodanshaSeries,
-        bookList: List<KodanshaBook>,
-        thumbnail: Image? = null
+        thumbnail: Image? = null,
     ): ProviderSeriesMetadata {
-        val status = when (series.completionStatus) {
-            "Ongoing" -> SeriesStatus.ONGOING
-            "Completed" -> SeriesStatus.ENDED
-            "Complete" -> SeriesStatus.ENDED
+        val status = when (series.status?.lowercase()?.trim()) {
+            "ongoing" -> SeriesStatus.ONGOING
+            "completed", "complete" -> SeriesStatus.ENDED
             else -> null
         }
-        val seriesTitle = series.title.removeSuffix("(manga)")
-        val ageRating = series.ageRating?.removeSuffix("+")?.toIntOrNull()
 
-        val author = if (series.creators?.size == 1) Author(series.creators.first().name, AuthorRole.WRITER) else null
         val metadata = SeriesMetadata(
             status = status,
-            titles = listOf(SeriesTitle(seriesTitle, TitleType.LOCALIZED, "en")),
-            summary = series.description?.let { parseDescription(it) },
+            titles = listOf(SeriesTitle(series.title, TitleType.LOCALIZED, "en")),
+            summary = series.description,
             publisher = series.publisher?.let { Publisher(it, PublisherType.LOCALIZED) },
-            ageRating = ageRating,
-            genres = series.genres?.map { it.name } ?: emptyList(),
-            totalBookCount = if (bookList.isEmpty()) null else bookList.size,
+            ageRating = series.ageRating,
+            genres = series.genres,
+            totalBookCount = series.volumes.size.takeIf { it > 0 },
             thumbnail = thumbnail,
-            authors = author?.let { listOf(it) } ?: emptyList(),
-            links = listOf(WebLink("Kodansha", seriesUrl(series.readableUrl ?: series.id.toString())))
+            authors = series.creators.toAuthors(),
+            links = listOf(WebLink("Kodansha", seriesUrl(series.slug))),
         )
 
         val providerMetadata = ProviderSeriesMetadata(
-            id = ProviderSeriesId(series.id.toString()),
+            id = ProviderSeriesId(series.slug),
             metadata = metadata,
-            books = bookList.map {
+            books = series.volumes.map { volume ->
                 SeriesBook(
-                    id = ProviderBookId(it.id.toString()),
-                    number = it.volumeNumber?.let { volumeNumber ->
-                        if (volumeNumber == 0) null
-                        else BookRange(volumeNumber.toDouble())
-                    },
-                    name = "${series.title} ${it.volumeNumber}",
+                    id = ProviderBookId(volume.slug),
+                    number = volume.number?.let { BookRange(it.toDouble()) },
+                    name = volume.name,
                     type = null,
-                    edition = null
+                    edition = null,
                 )
-            }
+            },
         )
         return MetadataConfigApplier.apply(providerMetadata, seriesMetadataConfig)
     }
 
     fun toBookMetadata(book: KodanshaBook, thumbnail: Image? = null): ProviderBookMetadata {
-        val author = if (book.creators?.size == 1) Author(book.creators.first().name, AuthorRole.WRITER) else null
         val metadata = BookMetadata(
-            title = book.name,
-            summary = book.description?.let { parseDescription(it) },
-            number = book.volumeNumber?.let { volumeNumber ->
-                if (volumeNumber == 0) null
-                else BookRange(volumeNumber.toDouble())
-            },
-            releaseDate = book.readable.digitalReleaseDate?.date ?: book.readable.printReleaseDate?.date,
-            isbn = book.readable.eisbn ?: book.readable.isbn,
-            authors = author?.let { listOf(it) } ?: emptyList(),
+            title = book.title,
+            summary = book.description,
+            number = book.number?.let { BookRange(it.toDouble()) },
+            releaseDate = book.releaseDate,
+            isbn = book.isbn,
+            authors = book.creators.toAuthors(),
             thumbnail = thumbnail,
-            links = listOf(WebLink("Kodansha", bookUrl(book.readableUrl ?: book.id.toString())))
+            links = listOf(WebLink("Kodansha", bookUrl(book.seriesSlug, book.slug))),
         )
 
         val providerMetadata = ProviderBookMetadata(
-            id = ProviderBookId(book.id.toString()),
-            metadata = metadata
+            id = ProviderBookId(book.slug),
+            metadata = metadata,
         )
-
         return MetadataConfigApplier.apply(providerMetadata, bookMetadataConfig)
     }
 
     fun toSeriesSearchResult(result: KodanshaSearchResult): SeriesSearchResult {
         return SeriesSearchResult(
-            url = bookUrl(result.content.readableUrl ?: result.content.id.toString()),
-            imageUrl = result.content.thumbnails.firstOrNull()?.url,
-            title = result.content.title,
-            resultId = result.content.id.toString(),
+            url = seriesUrl(result.slug),
+            imageUrl = result.image?.bestUrl(),
+            title = result.name,
+            resultId = result.slug,
             provider = CoreProviders.KODANSHA,
         )
     }
 
-    private fun parseDescription(description: String): String {
-        return Ksoup.parse(description).wholeText().replace("\n\n", "\n")
-    }
+    private fun List<KodanshaCreator>.toAuthors(): List<Author> =
+        map { Author(it.name, AuthorRole.WRITER) }
 
-    private fun seriesUrl(bookUrlPath: String) = "${kodanshaBaseUrl}/series/${bookUrlPath}"
-    private fun bookUrl(productUrlPath: String) = "${kodanshaBaseUrl}/product/${productUrlPath}"
-
+    private fun seriesUrl(seriesSlug: String) = "$kodanshaBaseUrl/series/$seriesSlug"
+    private fun bookUrl(seriesSlug: String, volumeSlug: String) =
+        "$kodanshaBaseUrl/series/$seriesSlug/$volumeSlug"
 }
