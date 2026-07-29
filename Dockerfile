@@ -16,7 +16,7 @@ ENV KOMF_CONFIG_DIR="/config"
 # Generational ZGC + 8-byte object headers (JEP 519, production in JDK 25).
 # Overriding JAVA_TOOL_OPTIONS in compose replaces this whole value, so include
 # these flags yourself if you set it.
-ENV JAVA_TOOL_OPTIONS="-XX:+UseZGC -XX:+UseCompactObjectHeaders"
+ENV JAVA_TOOL_OPTIONS="-XX:+UseCompactObjectHeaders"
 ENTRYPOINT ["java","-jar", "/app/komf.jar"]
 EXPOSE 8085
 
