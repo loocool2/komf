@@ -40,8 +40,8 @@ object KodanshaHtmlParser {
             ?: metaTitle(doc)
             ?: slug
 
-        val description = meta(doc, "og:description")
-            ?: heroDescription(doc)
+        val description = heroDescription(doc)
+            ?: meta(doc, "og:description")
             ?: hint?.shortDescription
 
         val info = infoItems(doc)
@@ -77,7 +77,9 @@ object KodanshaHtmlParser {
         val doc = Ksoup.parse(html)
 
         val title = heroTitle(doc) ?: metaTitle(doc) ?: volumeSlug
-        val description = meta(doc, "og:description") ?: heroDescription(doc)
+        // Prefer the on-page hero description: the og:description meta tag on a volume page
+        // carries the generic *series* blurb, not this volume's unique synopsis.
+        val description = heroDescription(doc) ?: meta(doc, "og:description")
         val info = infoItems(doc)
 
         val number = volumeNumberRegex.find("/$volumeSlug/")?.groupValues?.get(1)?.toIntOrNull()
@@ -200,11 +202,15 @@ object KodanshaHtmlParser {
         doc.select("h1").firstOrNull { !it.hasClass("site-title") }
             ?.text()?.trim()?.ifBlank { null }
 
-    /** On-page description block (`series__single__description` / `volume__hero__description`),
-     *  excluding the footer's `site-footer__description`. */
+    /**
+     * The unique on-page synopsis: `volume__hero__description` on a volume page,
+     * `series__single__description` on a series page. Targeted explicitly because several
+     * other blocks also carry a `*__description` class — the footer (`site-footer__description`)
+     * and, on volume pages, the buy box (`volume__product-card__description`, which just says
+     * "Purchase to read this volume online.").
+     */
     private fun heroDescription(doc: Document): String? =
-        doc.select("[class*=__description]")
-            .firstOrNull { !it.className().contains("footer") }
+        doc.selectFirst("[class*=hero__description], [class*=single__description]")
             ?.wholeText()?.trim()?.ifBlank { null }
 
     private fun heroCover(doc: Document): String? =
