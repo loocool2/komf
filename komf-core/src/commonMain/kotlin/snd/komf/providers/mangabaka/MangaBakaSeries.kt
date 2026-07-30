@@ -24,6 +24,10 @@ data class MangaBakaSeries(
     val romanizedTitle: String? = null,
     @SerialName("secondary_titles")
     val secondaryTitles: Map<String, List<MangaBakaSecondaryTitle>?>? = null,
+    // titles v2: flat list carrying proper language codes, traits and primary flag.
+    // Present in the API response; absent in the downloaded database (DB mode falls
+    // back to nativeTitle/romanizedTitle/secondaryTitles).
+    val titles: List<MangaBakaTitle>? = null,
     val cover: MangaBakaCover,
     val authors: List<String>? = null,
     val artists: List<String>? = null,
@@ -68,12 +72,43 @@ data class MangaBakaSecondaryTitle(
 )
 
 @Serializable
+data class MangaBakaTitle(
+    val language: String? = null,
+    val traits: List<String> = emptyList(),
+    val title: String,
+    val note: String? = null,
+    @SerialName("is_primary")
+    val isPrimary: Boolean? = null,
+)
+
+@Serializable
 data class MangaBakaCover(
     val raw: MangaBakaCoverRaw? = null,
     val x150: MangaBakaCoverDpi? = null,
     val x250: MangaBakaCoverDpi? = null,
     val x350: MangaBakaCoverDpi? = null,
-)
+) {
+    /**
+     * MangaBaka now serves covers through an extensionless imgproxy URL
+     * (e.g. `.../imgproxy/plain/x350@1/<base64>`). Requesting it without a
+     * format extension fails to load, so append one derived from the raw cover
+     * format (defaulting to jpg). If a URL already carries an extension it is
+     * returned unchanged.
+     */
+    fun thumbnailUrl(): String? {
+        val url = x350?.x1 ?: return null
+        if (url.substringAfterLast('/').contains('.')) return url
+
+        val extension = when (raw?.format?.lowercase()) {
+            "png" -> "png"
+            "webp" -> "webp"
+            "avif" -> "avif"
+            "gif" -> "gif"
+            else -> "jpg"
+        }
+        return "$url.$extension"
+    }
+}
 
 @Serializable
 data class MangaBakaCoverRaw(
