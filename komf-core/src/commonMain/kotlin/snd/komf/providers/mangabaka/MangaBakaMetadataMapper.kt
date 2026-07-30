@@ -59,27 +59,41 @@ class MangaBakaMetadataMapper(
             MangaBakaType.OEL -> "en"
             MangaBakaType.OTHER -> null
         }
-        val titles = listOf(SeriesTitle(series.title, null, null)) +
-                listOfNotNull(
-                    series.nativeTitle?.let { SeriesTitle(it, TitleType.NATIVE, originalLanguage) },
-                    series.romanizedTitle?.let {
-                        when (originalLanguage) {
-                            "ja" -> SeriesTitle(it, ROMAJI, "ja-ro")
-                            "ko" -> SeriesTitle(it, ROMAJI, "ko-ro")
-                            "zh" -> SeriesTitle(it, ROMAJI, "zh-ro")
-                            else -> null
-                        }
-                    }
-                )
+        // The main title always stays first so that title selection keeps
+        // choosing it when no preferred language is configured.
+        val mainTitle = SeriesTitle(series.title, null, null)
 
-        val secondaryTitles = series.secondaryTitles?.flatMap { (language, titles) ->
-            val titleType = when (language) {
-                originalLanguage -> TitleType.NATIVE
-                "ja-ro", "ko-ro", "zh-ro" -> ROMAJI
-                else -> TitleType.LOCALIZED
-            }
-            titles?.map { SeriesTitle(it.title, titleType, language) } ?: emptyList()
-        } ?: emptyList()
+        val otherTitles: List<SeriesTitle> = if (!series.titles.isNullOrEmpty()) {
+            // titles v2: use the language code and traits provided per title so
+            // that language-based selection resolves to the correct title.
+            series.titles
+                .filter { it.title != series.title }
+                .map { title -> SeriesTitle(title.title, title.titleType(), title.language) }
+        } else {
+            // Legacy fallback (DB mode, which has no titles v2 array).
+            val legacyTitles = listOfNotNull(
+                series.nativeTitle?.let { SeriesTitle(it, TitleType.NATIVE, originalLanguage) },
+                series.romanizedTitle?.let {
+                    when (originalLanguage) {
+                        "ja" -> SeriesTitle(it, ROMAJI, "ja-ro")
+                        "ko" -> SeriesTitle(it, ROMAJI, "ko-ro")
+                        "zh" -> SeriesTitle(it, ROMAJI, "zh-ro")
+                        else -> null
+                    }
+                }
+            )
+            val secondaryTitles = series.secondaryTitles?.flatMap { (language, titles) ->
+                val titleType = when (language) {
+                    originalLanguage -> TitleType.NATIVE
+                    "ja-ro", "ko-ro", "zh-ro" -> ROMAJI
+                    else -> TitleType.LOCALIZED
+                }
+                titles?.map { SeriesTitle(it.title, titleType, language) } ?: emptyList()
+            } ?: emptyList()
+            legacyTitles + secondaryTitles
+        }
+
+        val titles = listOf(mainTitle) + otherTitles
 
         val publisher = if (metadataConfig.useOriginalPublisher) originalPublishers.firstOrNull()
         else englishPublishers.firstOrNull() ?: originalPublishers.firstOrNull()
@@ -91,14 +105,14 @@ class MangaBakaMetadataMapper(
                 link.startsWith("https://myanimelist.net") -> WebLink("MyAnimeList", link)
                 link.startsWith("https://www.anime-planet.com") -> WebLink("Anime-Planet", link)
                 link.startsWith("https://www.novelupdates.com") -> WebLink("NovelUpdates", link)
-                link.startsWith("https://mangabaka.dev") -> WebLink("MangaBaka", link)
+                link.startsWith("https://mangabaka.org") -> WebLink("MangaBaka", link)
                 else -> parseUrl(link)?.let { url -> WebLink(url.host.removePrefix("www."), url.toStingEncoded()) }
             }
         }.sortedBy { it.label }
 
         val metadata = SeriesMetadata(
             status = status,
-            titles = titles + secondaryTitles,
+            titles = titles,
             summary = series.description?.let { Ksoup.parse(it).wholeText() },
             publisher = publisher,
             alternativePublishers = (originalPublishers + englishPublishers) - setOfNotNull(publisher),
@@ -121,10 +135,24 @@ class MangaBakaMetadataMapper(
     fun toSeriesSearchResult(series: MangaBakaSeries): SeriesSearchResult {
         return SeriesSearchResult(
             url = series.url(),
-            imageUrl = series.cover.x350?.x1,
+            imageUrl = series.cover.thumbnailUrl(),
             title = series.title,
             provider = CoreProviders.MANGA_BAKA,
             resultId = series.id.value.toString()
         )
+    }
+
+    // A romanized native title is carried as a Latin-script language subtag
+    // (e.g. "ko-Latn"); a non-Latin native trait maps to NATIVE, everything
+    // else is treated as a localized title.
+    private fun MangaBakaTitle.titleType(): TitleType {
+        val isRomanized = traits.contains("romanized") ||
+                language?.contains("-Latn", ignoreCase = true) == true
+        return when {
+            traits.contains("native") && isRomanized -> ROMAJI
+            traits.contains("native") -> TitleType.NATIVE
+            isRomanized -> ROMAJI
+            else -> TitleType.LOCALIZED
+        }
     }
 }

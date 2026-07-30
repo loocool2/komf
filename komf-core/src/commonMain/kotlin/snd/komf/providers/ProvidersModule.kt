@@ -776,7 +776,8 @@ class ProvidersModule(
                 artistRoles = config.artistRoles,
             ),
             nameMatcher = config.nameMatchingMode?.let { nameSimilarityMatcher(it) } ?: defaultNameMatcher,
-            coverFetchClient = if (config.seriesMetadata.thumbnail) coverFetchClient else null,
+            coverFetchClient = coverFetchClient,
+            fetchSeriesCovers = config.seriesMetadata.thumbnail,
             mediaType = config.mediaType
         )
     }
