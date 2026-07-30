@@ -53,6 +53,12 @@ private const val EXTERNAL_ID_ISBN = 3
  * Volumes are ordered by `display_order` only. `level` and `content_type` look
  * like they should identify volumes but are not consistent between series (the
  * same field is 2 for one series and 3 for another), so they are not used.
+ *
+ * ### Volume names
+ *
+ * `products.title` is only the volume token — a bare `Volume 1` for 30,388 of
+ * the export's products — which is what the series page's volume tiles show.
+ * Volume names come from `display_title` instead; see [displayName].
  */
 class BookWalkerDbDataSource(
     private val database: BookWalkerDatabase,
@@ -145,6 +151,7 @@ class BookWalkerDbDataSource(
                     productId = rs.getString("id"),
                     seriesId = rs.getString("series_id"),
                     title = rs.getString("title"),
+                    displayTitle = rs.getString("display_title"),
                     description = rs.getString("description")?.ifBlank { null },
                     displayOrder = rs.getObject("display_order")?.let { (it as Number).toDouble() },
                     onSaleAt = rs.getString("on_sale_at"),
@@ -166,7 +173,7 @@ class BookWalkerDbDataSource(
             BookWalkerBook(
                 id = id,
                 seriesId = BookWalkerSeriesId(stripPrefix(seriesRowId)),
-                name = row.title,
+                name = displayName(row.displayTitle, row.title),
                 number = bookNumber(row.title, row.displayOrder),
                 seriesTitle = seriesTitles?.first,
                 japaneseTitle = seriesTitles?.second?.firstOrNull { it.containsCjk() },
@@ -200,7 +207,7 @@ class BookWalkerDbDataSource(
         return BookWalkerSeriesBook(
             id = BookWalkerBookId(stripPrefix(rs.getString("content_id"))),
             number = bookNumber(title, rs.getObject("display_order")?.let { (it as Number).toDouble() }),
-            name = title,
+            name = displayName(rs.getString("display_title"), title),
         )
     }
 
@@ -270,6 +277,7 @@ class BookWalkerDbDataSource(
         val productId: String,
         val seriesId: String,
         val title: String,
+        val displayTitle: String?,
         val description: String?,
         val displayOrder: Double?,
         val onSaleAt: String?,
@@ -291,6 +299,26 @@ private fun addPrefix(id: String) =
     if (id.startsWith(CONTENT_PREFIX)) id else CONTENT_PREFIX + id
 
 // ---- parsing ---------------------------------------------------------------
+
+/**
+ * The name bookwalker.com shows for a volume, e.g. `Chainsaw Man, Vol. 1`.
+ *
+ * `products.title` carries only the volume token (`Volume 1`), which is what the
+ * series page's tiles display. `display_title` is the name the volume page
+ * itself renders: it already contains the series title joined in the
+ * publisher's own house style — `, Vol. 1` for 11,791 products, but also
+ * `: Volume 1`, ` Vol. 1`, ` Volume 1` and a bare ` 1` — plus edition suffixes
+ * such as `(VIZBIG Edition), Vol. 3`, and it drops parenthetical series
+ * qualifiers (`X (3-in-1)` volumes display as `X, Vol. 4`).
+ *
+ * Composing `"$seriesTitle, Vol. $number"` instead would mean choosing one of
+ * those styles for every series and being wrong for the rest, so the sourced
+ * value is used. `title` is still what [bookNumber] parses: its patterns are
+ * anchored on the bare token and would otherwise trip over digits inside a
+ * series title.
+ */
+private fun displayName(displayTitle: String?, title: String) =
+    displayTitle?.trim()?.ifBlank { null } ?: title
 
 /** `series.alt_titles` / `products.alt_titles` are JSON arrays of strings. */
 private fun parseJsonStringArray(raw: String?): List<String> {
@@ -390,7 +418,7 @@ private val SERIES_TAGS_SQL = """
 """.trimIndent()
 
 private val SERIES_BOOKS_SQL = """
-    SELECT p.content_id, p.title, p.display_order
+    SELECT p.content_id, p.title, p.display_title, p.display_order
     FROM products p
     WHERE p.series_id = ?
     ORDER BY p.display_order
@@ -408,7 +436,7 @@ private val SERIES_IMPRINT_SQL = """
 """.trimIndent()
 
 private val BOOK_SQL = """
-    SELECT p.id, p.series_id, p.title, p.description, p.display_order, p.on_sale_at,
+    SELECT p.id, p.series_id, p.title, p.display_title, p.description, p.display_order, p.on_sale_at,
            p.image_id,
            l.name AS label, pub.display_name AS publisher,
            (SELECT e.external_id FROM product_external_ids e
