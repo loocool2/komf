@@ -55,6 +55,36 @@ dependencies {
     implementation(libs.kaml)
 }
 
+val komeliaWebAppDir = "${rootDir}/Komelia/komelia-app/build/dist/wasmJs/productionExecutable"
+val komeliaWorkerDir = "${rootDir}/Komelia/komelia-image-decoder/wasm-image-worker/build/dist/wasmJs/productionExecutable"
+val komeliaResourcesDir = "${projectDir}/src/main/resources/komelia"
+
+tasks.register<Copy>("copyKomeliaWebApp") {
+    group = "build"
+    description = "Copies Komelia web app and image worker into komf-app resources for serving at /"
+    from(komeliaWebAppDir)
+    from(komeliaWorkerDir)
+    into(komeliaResourcesDir)
+    doFirst {
+        if (!file(komeliaWebAppDir).exists()) {
+            throw GradleException(
+                "Komelia web app not built. Run first:\n" +
+                "  cd Komelia && ./gradlew :komelia-app:wasmJsBrowserDistribution"
+            )
+        }
+        if (!file(komeliaWorkerDir).exists()) {
+            throw GradleException(
+                "Komelia image worker not built. Run first:\n" +
+                "  cd Komelia && ./gradlew :komelia-image-decoder:wasm-image-worker:wasmJsBrowserDistribution"
+            )
+        }
+    }
+}
+
+tasks.named("processResources") {
+    dependsOn("copyKomeliaWebApp")
+}
+
 tasks {
     shadowJar {
         archiveBaseName = "komf"

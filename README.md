@@ -11,9 +11,11 @@ You can also manually search and
 identify series, or match the entire library or a series.
 
 ### Komga and Kavita webui integration
-Browser web extension will let configure komf and identify series directly from komga or kavita webui
-- [Chrome download]( https://chromewebstore.google.com/detail/komf/bhppjldobkpocplgfcimljjhdjgbpdnh)
-- [Firefox download](https://addons.mozilla.org/en-US/firefox/addon/komf/)
+Browser web extension will let configure komf and identify series directly from komga or kavita webui.
+
+> **Note:** This fork includes fixes for Kavita 0.9.x+ compatibility. The extension must be built from source and
+> side-loaded as an unpacked extension — see [BUILD.md](BUILD.md) for full instructions.
+
 - deprecated [Komf userscript](https://github.com/Snd-R/komf-userscript) is still functional, but it will not receive new updates
 
 ## Building
